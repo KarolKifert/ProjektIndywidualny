@@ -1,131 +1,123 @@
-﻿using UnityEngine;
-using UnityEngine.Events;
+﻿using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
 
-public class CharacterController2D : MonoBehaviour
+public class PlayerController : MonoBehaviour
 {
-	[SerializeField] private float m_JumpForce = 400f;
-	[Range(0, 1)][SerializeField] private float m_CrouchSpeed = .36f;
-	[Range(0, .3f)][SerializeField] private float m_MovementSmoothing = .05f;
-	[SerializeField] private bool m_AirControl = false;
-	[SerializeField] private LayerMask m_WhatIsGround;
-	[SerializeField] private Transform m_GroundCheck;
-	[SerializeField] private Transform m_CeilingCheck;
-	[SerializeField] private Collider2D m_CrouchDisableCollider;
 
-	const float k_GroundedRadius = .2f;
-	private bool m_Grounded;
-	const float k_CeilingRadius = .2f;
-	private Rigidbody2D m_Rigidbody2D;
-	private bool m_FacingRight = true;
-	private Vector3 m_Velocity = Vector3.zero;
-
-	[Header("Events")]
-	[Space]
-
-	public UnityEvent OnLandEvent;
-
-	[System.Serializable]
-	public class BoolEvent : UnityEvent<bool> { }
-
-	public BoolEvent OnCrouchEvent;
-	private bool m_wasCrouching = false;
-
-	private void Awake()
-	{
-		m_Rigidbody2D = GetComponent<Rigidbody2D>();
-
-		if (OnLandEvent == null)
-			OnLandEvent = new UnityEvent();
-
-		if (OnCrouchEvent == null)
-			OnCrouchEvent = new BoolEvent();
-	}
-
-	private void FixedUpdate()
-	{
-		bool wasGrounded = m_Grounded;
-		m_Grounded = false;
-		
-		Collider2D[] colliders = Physics2D.OverlapCircleAll(m_GroundCheck.position, k_GroundedRadius, m_WhatIsGround);
-		for (int i = 0; i < colliders.Length; i++)
-		{
-			if (colliders[i].gameObject != gameObject)
-			{
-				m_Grounded = true;
-				if (!wasGrounded)
-					OnLandEvent.Invoke();
-			}
-		}
-	}
-
-	public void Move(float move, bool crouch, bool jump)
-	{
-		if (!crouch)
-		{	
-			if (Physics2D.OverlapCircle(m_CeilingCheck.position, k_CeilingRadius, m_WhatIsGround))
-			{
-				crouch = true;
-			}
-		}
-		
-		if (m_Grounded || m_AirControl)
-		{
-
-			if (crouch)
-			{
-				if (!m_wasCrouching)
-				{
-					m_wasCrouching = true;
-					OnCrouchEvent.Invoke(true);
-				}
-				
-				move *= m_CrouchSpeed;
-				
-				if (m_CrouchDisableCollider != null)
-					m_CrouchDisableCollider.enabled = false;
-			}
-			else
-			{				
-				if (m_CrouchDisableCollider != null)
-					m_CrouchDisableCollider.enabled = true;
-
-				if (m_wasCrouching)
-				{
-					m_wasCrouching = false;
-					OnCrouchEvent.Invoke(false);
-				}
-			}
-			
-			Vector3 targetVelocity = new Vector2(move * 10f, m_Rigidbody2D.velocity.y);
-			
-			m_Rigidbody2D.velocity = Vector3.SmoothDamp(m_Rigidbody2D.velocity, targetVelocity, ref m_Velocity, m_MovementSmoothing);
-
-			
-			if (move > 0 && !m_FacingRight)
-			{
-				Flip();
-			}
-			
-			else if (move < 0 && m_FacingRight)
-			{S
-				Flip();
-			}
-		}
-		
-		if (m_Grounded && jump)
-		{
-			m_Grounded = false;
-			m_Rigidbody2D.AddForce(new Vector2(0f, m_JumpForce));
-		}
-	}
+    public float speed;
+    public float jumpForce = 0.0f;
 
 
-	private void Flip()
-	{
-		m_FacingRight = !m_FacingRight;
+    private Rigidbody2D rb;
+    private GatherInput gI;
+    private Animator anim;
 
-		Vector3 theScale = transform.localScale;
-		theScale.x *= -1;
-		transform.localScale = theScale;
-	}
+    public float rayLength;
+    public bool grounded;
+    public bool preJump = false;
+    public LayerMask groundLayer;
+    public Transform checkPointLeft;
+    public Transform checkPointRight;
+    public PhysicsMaterial2D bounceMat, normalMat;
+
+
+    private int direction = 1;
+
+    void Start()
+    {
+        rb = GetComponent<Rigidbody2D>();
+        gI = GetComponent<GatherInput>();
+        anim = GetComponent<Animator>();
+    }
+
+    private void FixedUpdate()
+    {
+        Flip();
+        SetAnimatorValues();
+        PlayerJump();
+        CheckStatus();
+        PlayerMove();
+    }
+
+    private void PlayerMove()
+    {
+        if (jumpForce == 0.0f && grounded)
+        {
+            rb.velocity = new Vector2(speed * gI.valueX, rb.velocity.y);
+        }
+
+    }
+    private void Flip()
+    {
+        if (gI.valueX * direction < 0)
+        {
+            transform.localScale = new Vector3(-transform.localScale.x, 1, 1);
+            direction *= -1;
+        }
+    }
+    private void PlayerJump()
+    {
+        if (gI.jumpInput && grounded)
+        {
+            jumpForce += 0.5f;
+            rb.velocity = new Vector2(0.0f, rb.velocity.y);
+            rb.sharedMaterial = bounceMat;
+            preJump = true;
+        }
+        else
+        {
+            preJump = false;
+        }
+        if (gI.jumpInput && grounded && jumpForce >= 20.0f || gI.jumpInput == false && jumpForce >= 0.1f)
+        {
+            float tempX = gI.valueX * speed;
+            float tempY = jumpForce;
+            rb.velocity = new Vector2(tempX, tempY);
+            Invoke("ResetJump", 0.025f);
+        }
+        if (rb.velocity.y <= -1)
+        {
+            rb.sharedMaterial = normalMat;
+        }
+    }
+
+    private void ResetJump()
+    {
+
+        jumpForce = 0.0f;
+    }
+    private void CheckStatus()
+    {
+        RaycastHit2D leftCheckHit = Physics2D.Raycast(checkPointLeft.position, Vector2.down, rayLength, groundLayer);
+        RaycastHit2D rightCheckHit = Physics2D.Raycast(checkPointRight.position, Vector2.down, rayLength, groundLayer);
+
+        if (leftCheckHit || rightCheckHit)
+        {
+            grounded = true;
+        }
+        else
+        {
+            grounded = false;
+        }
+
+        SeeRays(leftCheckHit, rightCheckHit);
+    }
+
+    private void SeeRays(RaycastHit2D leftCheckHit, RaycastHit2D rightCheckHit)
+    {
+        Color color1 = leftCheckHit ? Color.green : Color.red;
+        Color color2 = rightCheckHit ? Color.green : Color.red;
+
+        Debug.DrawRay(checkPointLeft.position, Vector2.down * rayLength, color1);
+        Debug.DrawRay(checkPointRight.position, Vector2.down * rayLength, color2);
+    }
+
+    private void SetAnimatorValues()
+    {
+        anim.SetFloat("Speed", Mathf.Abs(rb.velocity.x));
+        anim.SetFloat("vSpeed", rb.velocity.y);
+        anim.SetBool("grounded", grounded);
+        anim.SetBool("preJump", preJump);
+    }
 }
