@@ -1,12 +1,17 @@
 ﻿using UnityEngine;
+using UnityEngine.SceneManagement;
+using System;
+using System.Collections;
 
 public class JumpKingMovement : MonoBehaviour
 {
-    public float baseJumpForce = 10f;
-    public float maxJumpForce = 20f;
+    public float baseJumpForce = 5f;
+    public float maxJumpForce = 10f;
     public float jumpChargeTime = 1f;
-    public float moveSpeed = 5f;
+    public float moveSpeed = 3f;
     public float maxFallSpeed = 10f;
+    public float wallBounceForce = 10f;
+    public float levelChangeHeight = 4.3f;
 
     private Rigidbody2D rb;
     private SpriteRenderer spriteRenderer;
@@ -18,12 +23,36 @@ public class JumpKingMovement : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
         spriteRenderer = GetComponent<SpriteRenderer>();
-        rb.freezeRotation = true; //Prewencja obrotu postaci dookoła siebie
+        rb.freezeRotation = true;
+
+        StartCoroutine(SetPlayerPosition());
+
+    }
+
+    private IEnumerator SetPlayerPosition()
+    {
+
+        if (PlayerPrefs.HasKey("PlayerXPosition"))
+        {
+            float playerXPosition = PlayerPrefs.GetFloat("PlayerXPosition");
+            if (PlayerPrefs.HasKey("PlayerXPosition"))
+            {
+                float bottomOfLevel = PlayerPrefs.GetFloat("PlayerYPosition");
+                transform.position = new Vector2(playerXPosition, bottomOfLevel);
+
+                if (PlayerPrefs.HasKey("PlayerYVelocity"))
+                {
+                    float playerYVelocity = PlayerPrefs.GetFloat("PlayerYVelocity");
+                    rb.velocity = new Vector2(rb.velocity.x, playerYVelocity);
+                }
+            }
+        }
+        yield return new WaitForEndOfFrame();
     }
 
     private void Update()
     {
-        // Skakanie
+        // Skakanie 
         if (Input.GetButtonDown("Jump") && isGrounded)
         {
             StartJumpCharge();
@@ -39,13 +68,13 @@ public class JumpKingMovement : MonoBehaviour
             Jump();
         }
 
-        // Poruszanie sie lewo/prawo
+        // Lewo/prawo
         float moveInput = Input.GetAxis("Horizontal");
 
-        // Fizyka poruszania
+        // Fizyka ruchu
         rb.velocity = new Vector2(moveInput * moveSpeed, rb.velocity.y);
 
-        // Odwrócenie postaci twarza do kierunku poruszania
+        // Postać patrzy w kierunku ruchu
         if (moveInput > 0f)
         {
             spriteRenderer.flipX = false;
@@ -54,11 +83,21 @@ public class JumpKingMovement : MonoBehaviour
         {
             spriteRenderer.flipX = true;
         }
+
+        if (transform.position.y > levelChangeHeight)
+        {
+            ChangeLevel();
+
+        }
+
+        if (transform.position.y < -5f)
+        {
+            PreviousLevel();
+        }
     }
 
     private void StartJumpCharge()
     {
-        // Definicja dla ładowania skoku
         isJumping = true;
         jumpChargeTimer = 0f;
     }
@@ -73,29 +112,58 @@ public class JumpKingMovement : MonoBehaviour
 
     private void Jump()
     {
-        // Matematyka dla skoku rozwinięta o naładowanie
         float jumpForce = Mathf.Lerp(baseJumpForce, maxJumpForce, jumpChargeTimer / jumpChargeTime);
         rb.AddForce(new Vector2(0f, jumpForce), ForceMode2D.Impulse);
         isGrounded = false;
         isJumping = false;
     }
 
+    private void ChangeLevel()
+    {
+        // Zachowanie położenia x i y postaci oraz prędkości na y
+        PlayerPrefs.SetFloat("PlayerXPosition", transform.position.x);
+        PlayerPrefs.SetFloat("PlayerYVelocity", rb.velocity.y);
+        PlayerPrefs.SetFloat("PlayerYPosition", -2.5f);
+
+        string currentSceneName = SceneManager.GetActiveScene().name;
+        int currentLevelNumber = int.Parse(currentSceneName.Substring(currentSceneName.Length - 1));
+        string nextSceneName = "Level" + (currentLevelNumber + 1);
+
+        SceneManager.LoadScene(nextSceneName);
+    }
+
+    private void PreviousLevel()
+    {
+        PlayerPrefs.SetFloat("PlayerXPosition", transform.position.x);
+        PlayerPrefs.SetFloat("PlayerYVelocity", rb.velocity.y);
+        PlayerPrefs.SetFloat("PlayerYPosition", 5f);
+
+        string currentSceneName = SceneManager.GetActiveScene().name;
+        int currentLevelNumber = int.Parse(currentSceneName.Substring(currentSceneName.Length - 1));
+        string nextSceneName = "Level" + (currentLevelNumber - 1);
+
+        SceneManager.LoadScene(nextSceneName);
+       
+    }
+
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        // Sprawdzanie czy postać jest na ziemii
         if (collision.contacts[0].normal.y > 0.5f)
         {
             isGrounded = true;
         }
 
-        // Jeszcze w toku, naprawa zatrzymywania się na blokach, nie jest to tragedia, ale wciąż :)
-        foreach (ContactPoint2D contactPoint in collision.contacts)
+        // Odbijanie od ścian
+        if (collision.gameObject.CompareTag("Wall"))
         {
-            if (Mathf.Abs(contactPoint.normal.y) < 0.5f)
-            {
-                rb.velocity = new Vector2(rb.velocity.x, Mathf.Clamp(rb.velocity.y, -maxFallSpeed, float.MaxValue));
-                break;
-            }
+            Rigidbody2D playerRigidbody = rb;
+            Vector2 relativeVelocity = collision.relativeVelocity;
+
+            // Kierunek odbicia
+            Vector2 bounceDirection = Vector2.Reflect(relativeVelocity.normalized, collision.contacts[0].normal);
+
+            // Siła odbicia
+            playerRigidbody.AddForce(bounceDirection * wallBounceForce, ForceMode2D.Impulse);
         }
     }
 }

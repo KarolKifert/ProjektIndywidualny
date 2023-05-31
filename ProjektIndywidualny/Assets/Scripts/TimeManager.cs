@@ -24,7 +24,7 @@ public class TimeManager : MonoBehaviour
 
     public void StartTimer()
     {
-        //Rozpoczecie odliczania z gra
+        //Rozpoczęcie odliczania od początku gry
         startTime = Time.time;
         isTiming = true;
     }
