@@ -123,7 +123,7 @@ public class JumpKingMovement : MonoBehaviour
         // Zachowanie położenia x i y postaci oraz prędkości na y
         PlayerPrefs.SetFloat("PlayerXPosition", transform.position.x);
         PlayerPrefs.SetFloat("PlayerYVelocity", rb.velocity.y);
-        PlayerPrefs.SetFloat("PlayerYPosition", -2.5f);
+        PlayerPrefs.SetFloat("PlayerYPosition", -4f);
 
         string currentSceneName = SceneManager.GetActiveScene().name;
         int currentLevelNumber = int.Parse(currentSceneName.Substring(currentSceneName.Length - 1));
@@ -136,22 +136,24 @@ public class JumpKingMovement : MonoBehaviour
     {
         PlayerPrefs.SetFloat("PlayerXPosition", transform.position.x);
         PlayerPrefs.SetFloat("PlayerYVelocity", rb.velocity.y);
-        PlayerPrefs.SetFloat("PlayerYPosition", 5f);
+        PlayerPrefs.SetFloat("PlayerYPosition", 4f);
 
         string currentSceneName = SceneManager.GetActiveScene().name;
         int currentLevelNumber = int.Parse(currentSceneName.Substring(currentSceneName.Length - 1));
         string nextSceneName = "Level" + (currentLevelNumber - 1);
 
         SceneManager.LoadScene(nextSceneName);
-       
+
     }
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
+
         if (collision.contacts[0].normal.y > 0.5f)
         {
             isGrounded = true;
         }
+
 
         // Odbijanie od ścian
         if (collision.gameObject.CompareTag("Wall"))
@@ -167,3 +169,6 @@ public class JumpKingMovement : MonoBehaviour
         }
     }
 }
+
+
+
